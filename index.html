@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <title>Moggable — 1v1 Mogoff Arena</title>
+  <meta name="description" content="Challenge strangers to Mogoffs — the ultimate 1v1 face rating battle. Video chat, rate, and mog." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- Toast container -->
+  <div id="toast-container"></div>
+
+  <!-- Pages -->
+  <div id="page-landing" class="page active"></div>
+  <div id="page-auth" class="page"></div>
+  <div id="page-dashboard" class="page"></div>
+  <div id="page-arena" class="page"></div>
+
+  <!-- Firebase SDKs -->
+  <script type="module" src="firebase-config.js"></script>
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
