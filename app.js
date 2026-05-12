@@ -25,6 +25,7 @@ let timeLeft = 0;
 let hasOvertime = false;
 let cameraOffStart = null;
 let remoteScore = "0.0";
+let faceMesh = null;
 const ICE_SERVERS = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
