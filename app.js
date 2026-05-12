@@ -112,8 +112,13 @@ function onFaceResults(results) {
     const jawWidth = Math.sqrt(Math.pow(jawRight.x - jawLeft.x, 2) + Math.pow(jawRight.y - jawLeft.y, 2));
 
     const ratio = jawWidth / eyeDist;
-    const base = (ratio - 1.2) * 8 + 3.0; 
-    currentMogScore = Math.min(Math.max((base + (Math.random() * 0.1)).toFixed(1), 1.0), 10.0);
+    const base = (ratio - 1.15) * 12 + 2.5; 
+    currentMogScore = Math.min(Math.max((base + (Math.random() * 0.2)).toFixed(1), 1.0), 10.0);
+    
+    // Emit real-time score to opponent
+    if (currentRoomId) {
+      socket.emit('live-rating', { roomId: currentRoomId, rating: currentMogScore });
+    }
     
     // 🔍 FACE ANALYSIS (DOM & FLAW)
     let dom = "Strong Jawline";
@@ -306,6 +311,13 @@ function connectSocket() {
   });
 
   socket.on('opponent-rating', ({ rating }) => {
+    remoteScore = rating;
+    const el = document.getElementById('remote-mog-score');
+    if (el) el.textContent = rating;
+    const sub = el?.nextElementSibling;
+    if (sub && sub.classList.contains('mog-score-sub')) sub.textContent = 'SCANNING...';
+  });
+  socket.on('live-rating', ({ rating }) => {
     remoteScore = rating;
     const el = document.getElementById('remote-mog-score');
     if (el) el.textContent = rating;
@@ -1024,7 +1036,6 @@ function renderArena() {
              <div class="mog-score-card">
               <div class="mog-score-label">OVERALL SCORE</div>
               <div class="mog-score-val" id="remote-mog-score">?.?</div>
-              <div class="mog-score-sub">WAITING...</div>
             </div>
           </div>
 
@@ -1033,13 +1044,16 @@ function renderArena() {
             <div id="remote-status-badges" style="display:flex;gap:4px;margin-top:4px;justify-content:flex-end"></div>
           </div>
 
-          <div class="mogoff-overlay" id="mogoff-overlay">
-            <div class="mogoff-title">ANALYZING OPPONENT...</div>
-            <div class="final-score-display" id="final-capture-score">?.?</div>
-            <p style="color:var(--muted)">Stay still for AI evaluation</p>
-          </div>
         </div>
       </div>
+      
+      <!-- Global Mogoff Overlay -->
+      <div class="mogoff-overlay" id="mogoff-overlay">
+        <div class="mogoff-title">ANALYZING MOGOFF...</div>
+        <div class="final-score-display" id="final-capture-score">?.?</div>
+        <p style="color:var(--muted)">Stay still for AI evaluation</p>
+      </div>
+
       <div class="arena-status" id="arena-status">Establishing connection...</div>
       <div class="arena-controls">
         <button class="btn btn-primary btn-sm" id="mogoff-btn">🔥 Auto Mogoff!</button>

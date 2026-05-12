@@ -154,6 +154,10 @@ io.on('connection', (socket) => {
     socket.to(roomId).emit('status-update', { status });
   });
 
+  socket.on('live-rating', ({ roomId, rating }) => {
+    socket.to(roomId).emit('live-rating', { rating });
+  });
+
   socket.on('submit-rating', ({ roomId, rating }) => {
     const room = rooms.get(roomId);
     if (!room) return;
