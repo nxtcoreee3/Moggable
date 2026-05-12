@@ -3,7 +3,6 @@
    Dark glassmorphism, mobile-first
 ═══════════════════════════════════════════════ */
 
-/* ── Tokens ── */
 :root {
   --bg: #050508;
   --surface: rgba(255,255,255,0.04);
@@ -20,7 +19,6 @@
   --font: 'Outfit', sans-serif;
 }
 
-/* ── Reset ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; overflow: hidden; }
 body {
@@ -30,7 +28,6 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* ── Background orbs ── */
 body::before, body::after {
   content: '';
   position: fixed;
@@ -50,7 +47,6 @@ body::after {
   bottom: -150px; right: -150px;
 }
 
-/* ── Pages ── */
 .page {
   position: fixed; inset: 0;
   display: none;
@@ -63,7 +59,6 @@ body::after {
 }
 .page.active { display: flex; }
 
-/* ── Glass card ── */
 .glass {
   background: var(--surface);
   backdrop-filter: blur(24px);
@@ -72,7 +67,6 @@ body::after {
   border-radius: var(--radius);
 }
 
-/* ── Buttons ── */
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 10px;
   padding: 14px 28px;
@@ -111,7 +105,6 @@ body::after {
 .btn-icon { padding: 12px; border-radius: 12px; }
 .btn-full { width: 100%; }
 
-/* ── Inputs ── */
 input, textarea {
   width: 100%;
   background: rgba(255,255,255,0.05);
@@ -129,7 +122,6 @@ input:focus, textarea:focus {
 }
 input::placeholder { color: var(--muted); }
 
-/* ── Labels ── */
 label {
   display: block;
   font-size: 13px; font-weight: 600;
@@ -138,7 +130,6 @@ label {
   margin-bottom: 8px;
 }
 
-/* ── Badge ── */
 .badge {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 4px 12px;
@@ -150,7 +141,6 @@ label {
 .badge-green  { background: rgba(34,211,238,0.15); color: var(--success); border: 1px solid rgba(34,211,238,0.25); }
 .badge-red    { background: rgba(244,63,94,0.15); color: var(--danger); border: 1px solid rgba(244,63,94,0.25); }
 
-/* ── Divider ── */
 .divider {
   display: flex; align-items: center; gap: 12px;
   color: var(--muted); font-size: 13px;
@@ -161,7 +151,6 @@ label {
   height: 1px; background: var(--border);
 }
 
-/* ── Toast ── */
 #toast-container {
   position: fixed; bottom: 24px; left: 50%;
   transform: translateX(-50%);
@@ -188,9 +177,6 @@ label {
   to { opacity:0; transform:translateY(20px); }
 }
 
-/* ═══════════════════════════════════════════════
-   LANDING PAGE
-═══════════════════════════════════════════════ */
 #page-landing { text-align: center; }
 .landing-inner { max-width: 540px; width: 100%; }
 .logo {
@@ -225,9 +211,6 @@ label {
 .stat-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
 .landing-cta { display: flex; flex-direction: column; gap: 12px; }
 
-/* ═══════════════════════════════════════════════
-   AUTH PAGE
-═══════════════════════════════════════════════ */
 .auth-card {
   width: min(420px, 100%);
   padding: 40px 36px;
@@ -248,9 +231,6 @@ label {
 .google-btn:active { transform: scale(0.97); }
 .google-icon { width: 22px; height: 22px; }
 
-/* ═══════════════════════════════════════════════
-   DASHBOARD
-═══════════════════════════════════════════════ */
 #page-dashboard {
   justify-content: flex-start;
   padding: 0;
@@ -274,7 +254,6 @@ label {
   border: 2px solid rgba(168,85,247,0.4);
 }
 
-/* Profile card */
 .profile-card {
   padding: 24px;
   margin-bottom: 20px;
@@ -299,7 +278,6 @@ label {
 .copy-btn { color: var(--muted); background: none; border: none; cursor: pointer; font-size: 18px; transition: color 0.2s; }
 .copy-btn:hover { color: var(--accent); }
 
-/* Online indicator */
 .online-bar {
   display: flex; align-items: center; gap: 8px;
   padding: 12px 20px;
@@ -317,7 +295,6 @@ label {
   50% { opacity:0.5; transform:scale(1.4); }
 }
 
-/* Action cards */
 .section-title { font-size: 13px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 12px; }
 .action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
 .action-card {
@@ -340,7 +317,6 @@ label {
 .action-title { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
 .action-desc { font-size: 13px; color: var(--muted); }
 
-/* Friend code input section */
 .fc-section { padding: 20px; margin-bottom: 20px; }
 .fc-input-row { display: flex; gap: 10px; }
 .fc-input {
@@ -351,9 +327,6 @@ label {
   text-transform: uppercase;
 }
 
-/* ═══════════════════════════════════════════════
-   ARENA PAGE
-═══════════════════════════════════════════════ */
 #page-arena {
   padding: 0;
   background: #020204;
@@ -363,7 +336,6 @@ label {
   display: flex; flex-direction: column;
 }
 
-/* Top bar */
 .arena-topbar {
   display: flex; align-items: center; justify-content: space-between;
   padding: 12px 16px;
@@ -373,7 +345,6 @@ label {
 }
 .arena-title { font-size: 18px; font-weight: 900; background: linear-gradient(135deg, #c084fc, #818cf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
 
-/* Videos */
 .video-grid {
   flex: 1; display: grid;
   grid-template-columns: 1fr 1fr;
@@ -404,7 +375,6 @@ label {
 .video-overlay .big-emoji { font-size: 48px; }
 .video-overlay p { font-size: 14px; text-align: center; padding: 0 16px; }
 
-/* Status bar */
 .arena-status {
   flex-shrink: 0;
   padding: 10px 16px;
@@ -415,7 +385,6 @@ label {
   border-top: 1px solid var(--border);
 }
 
-/* Controls */
 .arena-controls {
   display: flex; align-items: center; justify-content: center;
   gap: 10px; padding: 12px 16px;
@@ -424,7 +393,6 @@ label {
   flex-shrink: 0; flex-wrap: wrap;
 }
 
-/* Mogoff rating overlay */
 .mogoff-overlay {
   position: absolute; inset: 0;
   background: rgba(0,0,0,0.85);
@@ -448,7 +416,6 @@ label {
   filter: none; opacity: 1; transform: scale(1.2);
 }
 
-/* Chat panel */
 .chat-panel {
   position: absolute; right: 0; top: 0; bottom: 0;
   width: min(300px, 80vw);
@@ -472,7 +439,6 @@ label {
 .chat-input-row { display: flex; gap: 8px; padding: 10px; border-top: 1px solid var(--border); }
 .chat-input-row input { border-radius: 8px; padding: 10px 14px; font-size: 14px; }
 
-/* Waiting screen */
 #waiting-screen {
   position: absolute; inset: 0; z-index: 40;
   display: none;
@@ -491,7 +457,6 @@ label {
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* Results overlay */
 #results-overlay {
   position: fixed; inset: 0; z-index: 50;
   display: none;
@@ -502,33 +467,6 @@ label {
 }
 #results-overlay.active { display: flex; }
 
-/* ═══════════════════════════════════════════════
-   MODAL
-═══════════════════════════════════════════════ */
-.modal-backdrop {
-  position: fixed; inset: 0; z-index: 60;
-  background: rgba(0,0,0,0.7);
-  backdrop-filter: blur(8px);
-  display: none;
-  align-items: center; justify-content: center;
-  padding: 20px;
-}
-.modal-backdrop.active { display: flex; }
-.modal-box {
-  width: min(440px, 100%);
-  padding: 32px;
-  animation: modalIn 0.25s ease;
-}
-@keyframes modalIn {
-  from { opacity:0; transform:scale(0.93) translateY(20px); }
-  to   { opacity:1; transform:scale(1) translateY(0); }
-}
-.modal-title { font-size: 20px; font-weight: 800; margin-bottom: 20px; }
-.modal-close { position: absolute; top: 16px; right: 16px; background: none; border: none; color: var(--muted); font-size: 22px; cursor: pointer; }
-
-/* ═══════════════════════════════════════════════
-   RESPONSIVE
-═══════════════════════════════════════════════ */
 @media (max-width: 480px) {
   .action-grid { grid-template-columns: 1fr; }
   .video-grid { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }

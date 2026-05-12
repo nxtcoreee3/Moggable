@@ -154,12 +154,16 @@ io.on('connection', (socket) => {
 
     // If both rated, reveal results
     if (Object.keys(room.ratings).length === 2) {
-      const [uid1, uid2] = room.users;
-      const results = {
-        [uid1]: room.ratings[uid1],
-        [uid2]: room.ratings[uid2]
-      };
-      io.to(roomId).emit('mogoff-results', { results, socketIds: room.users });
+      const results = {};
+      const uids = {}; // socketId -> uid
+      
+      room.users.forEach(sid => {
+        const user = onlineUsers.get(sid);
+        results[sid] = room.ratings[sid];
+        uids[sid] = user?.uid;
+      });
+
+      io.to(roomId).emit('mogoff-results', { results, uids, socketIds: room.users });
     } else {
       socket.emit('rating-submitted');
       socket.to(roomId).emit('partner-rated');
