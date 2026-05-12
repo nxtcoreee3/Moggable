@@ -232,33 +232,6 @@ function connectSocket() {
     if (el) el.textContent = count;
   });
   socket.on('waiting', () => showWaiting('Finding your opponent…'));
-  socket.on('matched', ({ roomId, role }) => {
-    currentRoomId = roomId;
-    myRole = role;
-    hideWaiting();
-    setStatus('Connected! Starting video…');
-    startWebRTC();
-  });
-  socket.on('offer', async ({ offer }) => {
-    if (!peerConnection) initPeer();
-    await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
-    const answer = await peerConnection.createAnswer();
-    await peerConnection.setLocalDescription(answer);
-    socket.emit('answer', { roomId: currentRoomId, answer });
-  });
-  socket.on('answer', async ({ answer }) => {
-    await peerConnection?.setRemoteDescription(new RTCSessionDescription(answer));
-  });
-  socket.on('ice-candidate', async ({ candidate }) => {
-    try { await peerConnection?.addIceCandidate(new RTCIceCandidate(candidate)); } catch {}
-  });
-  socket.on('peer-disconnected', () => {
-    toast('Your opponent disconnected', 'error');
-    setStatus('Opponent left. Skip or go back.');
-    resetPeer();
-    document.getElementById('remote-video').srcObject = null;
-    showRemoteOverlay(true);
-  });
   socket.on('match-found', async ({ roomId, partner, role }) => {
     currentRoomId = roomId;
     myRole = role;
@@ -271,13 +244,42 @@ function connectSocket() {
     socket.emit('status-update', { roomId, status: { muted: isMuted, deafened: isDeafened, cameraOff: false } });
     
     startLocalStream().then(stream => {
-      createPeerConnection();
-      stream.getTracks().forEach(track => peerConnection.addTrack(track, stream));
+      initPeer();
+      if (myRole === 'initiator') {
+        peerConnection.createOffer().then(offer => {
+          return peerConnection.setLocalDescription(offer);
+        }).then(() => {
+          socket.emit('offer', { roomId: currentRoomId, offer: peerConnection.localDescription });
+        });
+      }
     });
   });
 
   socket.on('status-update', ({ status }) => {
     updateRemoteStatus(status);
+  });
+
+  socket.on('offer', async ({ offer }) => {
+    if (!peerConnection) initPeer();
+    await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+    const answer = await peerConnection.createAnswer();
+    await peerConnection.setLocalDescription(answer);
+    socket.emit('answer', { roomId: currentRoomId, answer });
+  });
+
+  socket.on('answer', async ({ answer }) => {
+    await peerConnection?.setRemoteDescription(new RTCSessionDescription(answer));
+  });
+
+  socket.on('ice-candidate', async ({ candidate }) => {
+    try { await peerConnection?.addIceCandidate(new RTCIceCandidate(candidate)); } catch {}
+  });
+
+  socket.on('peer-disconnected', () => {
+    toast('Your opponent disconnected', 'error');
+    resetPeer();
+    document.getElementById('remote-video').srcObject = null;
+    showRemoteOverlay(true);
   });
 
   socket.on('opponent-rating', ({ rating }) => {
@@ -362,17 +364,28 @@ function toggleCam() {
 }
 
 function initPeer() {
+  if (peerConnection) return;
   peerConnection = new RTCPeerConnection(ICE_SERVERS);
-  localStream?.getTracks().forEach(t => peerConnection.addTrack(t, localStream));
+  
+  if (localStream) {
+    localStream.getTracks().forEach(track => {
+      peerConnection.addTrack(track, localStream);
+    });
+  }
+
+  peerConnection.onicecandidate = e => {
+    if (e.candidate) {
+      socket.emit('ice-candidate', { roomId: currentRoomId, candidate: e.candidate });
+    }
+  };
+
   peerConnection.ontrack = e => {
     const rv = document.getElementById('remote-video');
     if (rv) { rv.srcObject = e.streams[0]; rv.play().catch(() => {}); }
     showRemoteOverlay(false);
     setStatus('Live 🔴 — Challenge to a Mogoff!');
   };
-  peerConnection.onicecandidate = e => {
-    if (e.candidate) socket.emit('ice-candidate', { roomId: currentRoomId, candidate: e.candidate });
-  };
+
   peerConnection.onconnectionstatechange = () => {
     if (['failed','disconnected'].includes(peerConnection.connectionState)) {
       toast('Connection lost', 'error');
@@ -381,19 +394,11 @@ function initPeer() {
   };
 }
 
-async function startWebRTC() {
-  await getLocalStream();
-  initPeer();
-  if (myRole === 'initiator') {
-    const offer = await peerConnection.createOffer();
-    await peerConnection.setLocalDescription(offer);
-    socket.emit('offer', { roomId: currentRoomId, offer });
-  }
-}
-
 function resetPeer() {
-  peerConnection?.close();
-  peerConnection = null;
+  if (peerConnection) {
+    peerConnection.close();
+    peerConnection = null;
+  }
   currentRoomId = null;
   myRole = null;
   selectedRating = 0;
@@ -844,8 +849,9 @@ async function joinByCode() {
 function openArena() {
   renderArena();
   showPage('page-arena');
-  getLocalStream().then(() => {
-    runFaceTracking();
+  startLocalStream().then(() => {
+    // Only run face tracking if not already running (MediaPipe handles this internally usually)
+    // but we can trigger it here for the arena view
   }).catch(() => toast('Camera access denied', 'error'));
 }
 
