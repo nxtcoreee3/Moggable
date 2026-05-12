@@ -71,34 +71,49 @@ function initFaceMesh() {
 function onFaceResults(results) {
   const statusEl = document.getElementById('face-status-badge');
   const scoreEl = document.getElementById('live-mog-score');
+  const canvasElement = document.getElementById('local-canvas');
+  if (!canvasElement) return;
+  const canvasCtx = canvasElement.getContext('2d');
   
+  // Clear canvas
+  canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+
   if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
     const landmarks = results.multiFaceLandmarks[0];
     
-    // 🧠 MOG SCORE CALCULATION (Simplified Aesthetic Proxy)
-    // 1. Symmetry check (Distance between eye outer corners vs nose center)
+    // 🎨 DRAW MESH
+    if (window.drawConnectors && window.FACEMESH_TESSELATION) {
+      drawConnectors(canvasCtx, landmarks, FACEMESH_TESSELATION, {color: '#00FFC8', lineWidth: 0.5});
+      drawConnectors(canvasCtx, landmarks, FACEMESH_RIGHT_EYE, {color: '#00FFC8'});
+      drawConnectors(canvasCtx, landmarks, FACEMESH_LEFT_EYE, {color: '#00FFC8'});
+      drawConnectors(canvasCtx, landmarks, FACEMESH_LIPS, {color: '#00FFC8'});
+    } else {
+      // Fallback manual point drawing if drawing_utils hasn't loaded yet
+      canvasCtx.fillStyle = '#00FFC8';
+      for (const landmark of landmarks) {
+        canvasCtx.beginPath();
+        canvasCtx.arc(landmark.x * canvasElement.width, landmark.y * canvasElement.height, 1, 0, 2 * Math.PI);
+        canvasCtx.fill();
+      }
+    }
+    
+    // 🧠 MOG SCORE CALCULATION (Scaled 1.0 - 10.0)
     const leftEye = landmarks[33];
     const rightEye = landmarks[263];
-    const nose = landmarks[1];
     const eyeDist = Math.sqrt(Math.pow(rightEye.x - leftEye.x, 2) + Math.pow(rightEye.y - leftEye.y, 2));
-    
-    // 2. Jaw prominence proxy (Width of face at jawline)
     const jawLeft = landmarks[234];
     const jawRight = landmarks[454];
     const jawWidth = Math.sqrt(Math.pow(jawRight.x - jawLeft.x, 2) + Math.pow(jawRight.y - jawLeft.y, 2));
 
-    // 3. Normalize score based on scale (eye distance) to avoid distance-from-cam bias
-    const rawScore = (jawWidth / eyeDist) * 35; 
+    const rawValue = (jawWidth / eyeDist) * 3.5; 
+    currentMogScore = Math.min(Math.max((rawValue + (Math.random() * 0.2)).toFixed(1), 1.0), 10.0);
     
-    // Add some "jitter" for a live feel and clamp it 0-100
-    currentMogScore = Math.min(Math.max(Math.round(rawScore + (Math.random() * 2)), 30), 99);
-    
-    if (statusEl) { statusEl.textContent = 'FACE TRACKED'; statusEl.className = 'badge badge-green'; }
+    if (statusEl) { statusEl.textContent = 'SCANNING...'; statusEl.className = 'badge badge-green'; }
     if (scoreEl) scoreEl.textContent = currentMogScore;
   } else {
-    currentMogScore = 0;
-    if (statusEl) { statusEl.textContent = 'NO FACE DETECTED'; statusEl.className = 'badge badge-red'; }
-    if (scoreEl) scoreEl.textContent = '—';
+    currentMogScore = "0.0";
+    if (statusEl) { statusEl.textContent = 'FACE NOT FOUND'; statusEl.className = 'badge badge-red'; }
+    if (scoreEl) scoreEl.textContent = '0.0';
   }
 }
 
@@ -354,12 +369,70 @@ function showResults(myScore, partnerScore) {
   const ol = document.getElementById('results-overlay');
   if (!ol) return;
 
-  document.getElementById('result-my-score').textContent = myScore;
-  document.getElementById('result-their-score').textContent = partnerScore;
+  const myS = parseFloat(myScore);
+  const pS = parseFloat(partnerScore);
+  const diff = Math.abs(myS - pS);
+  
+  document.getElementById('result-my-score').textContent = myS.toFixed(1);
+  document.getElementById('result-their-score').textContent = pS.toFixed(1);
 
-  const winner = myScore > partnerScore ? '🏆 You Mogged!' :
-                 myScore < partnerScore ? '😔 You got Mogged' : '🤝 It\'s a Tie!';
-  document.getElementById('result-verdict').textContent = winner;
+  let verdict = "";
+  let subtext = "";
+  let color = "var(--text)";
+
+  if (myS > pS) {
+    if (diff < 0.5) {
+      verdict = "EDGED";
+      subtext = "THEY COULDN'T COMPETE";
+      color = "#22d3ee";
+    } else if (diff < 1.5) {
+      verdict = "MOGGED";
+      subtext = "CLEAR DOMINANCE";
+      color = "#c084fc";
+    } else {
+      verdict = "BRUTALIZED";
+      subtext = "ABSOLUTE ANNIHILATION";
+      color = "#f43f5e";
+    }
+  } else if (pS > myS) {
+    if (diff < 0.5) {
+      verdict = "EDGED";
+      subtext = "YOU COULDN'T COMPETE";
+      color = "var(--muted)";
+    } else if (diff < 1.5) {
+      verdict = "MOGGED";
+      subtext = "YOU GOT OVERPOWERED";
+      color = "var(--danger)";
+    } else {
+      verdict = "BRUTALIZED";
+      subtext = "YOU WERE ANNIHILATED";
+      color = "var(--danger)";
+    }
+  } else {
+    verdict = "TIED";
+    subtext = "A PERFECT MATCH";
+    color = "#fff";
+  }
+
+  const verdictEl = document.getElementById('result-verdict');
+  verdictEl.textContent = verdict;
+  verdictEl.style.color = color;
+  verdictEl.style.fontSize = "72px";
+  verdictEl.style.letterSpacing = "0.1em";
+  
+  const subEl = document.getElementById('result-subtext') || document.createElement('div');
+  subEl.id = 'result-subtext';
+  subEl.textContent = subtext;
+  subEl.style.color = "var(--muted)";
+  subEl.style.fontSize = "14px";
+  subEl.style.fontWeight = "800";
+  subEl.style.marginTop = "-10px";
+  subEl.style.textTransform = "uppercase";
+  
+  if (!document.getElementById('result-subtext')) {
+    verdictEl.parentNode.insertBefore(subEl, verdictEl.nextSibling);
+  }
+
   ol.classList.add('active');
 }
 
@@ -642,33 +715,86 @@ function renderArena() {
     <div class="arena-wrap">
       <div class="arena-topbar"><div class="arena-title">⚔️ Moggable</div><div style="display:flex;gap:8px;align-items:center"><button class="btn btn-ghost btn-sm btn-icon" id="chat-toggle-btn" title="Chat">💬</button><button class="btn btn-ghost btn-sm" id="arena-back-btn">✕ Leave</button></div></div>
       <div class="video-grid">
-        <div class="video-slot">
+        <div class="video-slot player-slot">
           <video id="local-video" autoplay muted playsinline></video>
-          <div class="video-label">You</div>
-          <!-- Live AI Badge -->
-          <div style="position:absolute;top:10px;left:10px;display:flex;flex-direction:column;gap:6px">
-            <div id="face-status-badge" class="badge badge-red">INITIALIZING AI...</div>
-            <div class="badge badge-purple" style="font-size:16px">SCORE: <span id="live-mog-score">—</span></div>
+          <canvas id="local-canvas" width="640" height="480"></canvas>
+          <div class="scanline"></div>
+          
+          <div class="slot-overlay top-left">
+            <div class="mog-score-card">
+              <div class="mog-score-label">OVERALL SCORE</div>
+              <div class="mog-score-val" id="live-mog-score">0.0</div>
+              <div class="mog-score-sub"><span style="color:var(--success)">●</span> SCANNING</div>
+            </div>
           </div>
+
+          <div class="slot-overlay top-right">
+            <div class="scan-tag">YOUR SCAN</div>
+          </div>
+
+          <div class="slot-overlay bottom-right">
+            <div class="player-info-card">
+              <div class="player-name">${userData.username}</div>
+              <div class="player-meta"><span class="badge badge-purple">${userData.elo} ELO</span></div>
+            </div>
+          </div>
+
+          <div id="face-status-badge" class="status-pill">INITIALIZING...</div>
         </div>
-        <div class="video-slot"><video id="remote-video" autoplay playsinline></video><div class="video-overlay" id="remote-overlay"><div class="big-emoji">👤</div><p>Waiting for opponent…</p></div>
-          <!-- Mogoff rating overlay -->
+
+        <div class="video-slot opponent-slot">
+          <video id="remote-video" autoplay playsinline></video>
+          <div class="scanline"></div>
+          <div class="video-overlay" id="remote-overlay"><div class="big-emoji">👤</div><p>Searching for opponent…</p></div>
+          
+          <div class="slot-overlay top-left">
+             <div class="mog-score-card">
+              <div class="mog-score-label">OVERALL SCORE</div>
+              <div class="mog-score-val" id="remote-mog-score">?.?</div>
+              <div class="mog-score-sub">WAITING...</div>
+            </div>
+          </div>
+
+          <div class="slot-overlay top-right">
+            <div class="scan-tag">ENEMY SCAN</div>
+          </div>
+
           <div class="mogoff-overlay" id="mogoff-overlay">
-            <div class="mogoff-title">AI SCORING IN PROGRESS...</div>
-            <div style="font-size:64px;margin:20px 0" id="final-capture-score">—</div>
-            <p style="color:var(--muted)">Stay still for the AI evaluation</p>
+            <div class="mogoff-title">ANALYZING OPPONENT...</div>
+            <div class="final-score-display" id="final-capture-score">?.?</div>
+            <p style="color:var(--muted)">Stay still for AI evaluation</p>
           </div>
         </div>
       </div>
-      <div class="arena-status" id="arena-status">Connecting…</div>
+      <div class="arena-status" id="arena-status">Establishing connection...</div>
       <div class="arena-controls">
         <button class="btn btn-primary btn-sm" id="mogoff-btn">🔥 Auto Mogoff!</button>
         <button class="btn btn-ghost btn-sm" id="skip-btn">⏭ Skip</button>
-        <button class="btn btn-danger btn-sm" id="end-btn">📵 End</button><button class="btn btn-ghost btn-sm btn-icon" id="mute-btn" title="Mute">🎤</button><button class="btn btn-ghost btn-sm btn-icon" id="cam-btn" title="Camera">📷</button><button class="btn btn-ghost btn-sm btn-icon" id="report-btn" title="Report">🚩</button>
+        <button class="btn btn-danger btn-sm" id="end-btn">📵 End</button>
       </div>
       <div class="chat-panel" id="chat-panel"><div class="chat-header">💬 Chat<button class="btn btn-ghost btn-sm btn-icon" id="chat-close-btn">✕</button></div><div class="chat-messages" id="chat-messages"></div><div class="chat-input-row"><input id="chat-input" type="text" placeholder="Type a message…" maxlength="200" /><button class="btn btn-primary btn-sm btn-icon" id="chat-send-btn">➤</button></div></div>
     </div>
-    <div id="results-overlay"><div style="font-size:48px">🏆</div><div style="font-size:26px;font-weight:900" id="result-verdict">Mogoff Results</div><div class="glass" style="padding:24px 40px;display:flex;gap:40px;border-radius:16px;text-align:center"><div><div style="color:var(--muted);font-size:13px;margin-bottom:4px">Your Score</div><div style="font-size:48px;font-weight:900;color:var(--accent)" id="result-my-score">—</div></div><div style="display:flex;align-items:center;color:var(--muted)">vs</div><div><div style="color:var(--muted);font-size:13px;margin-bottom:4px">Their Score</div><div style="font-size:48px;font-weight:900;color:var(--danger)" id="result-their-score">—</div></div></div><button class="btn btn-primary" id="results-rematch-btn">⚡ Find New Match</button><button class="btn btn-ghost" id="results-home-btn">🏠 Dashboard</button></div>`;
+    <div id="results-overlay">
+      <div style="font-size:72px;font-weight:900;margin-bottom:10px;text-shadow:0 0 30px currentColor" id="result-verdict">EDGED</div>
+      <div id="result-subtext" style="color:var(--muted);font-size:14px;font-weight:800;margin-bottom:40px;text-transform:uppercase">THEY COULDN'T COMPETE</div>
+      
+      <div class="results-grid">
+        <div class="result-card you-card">
+          <div class="rc-label">YOU</div>
+          <div class="rc-score" id="result-my-score">0.0</div>
+        </div>
+        <div class="result-card opponent-card">
+          <div class="rc-label">OPPONENT</div>
+          <div class="rc-score" id="result-their-score">0.0</div>
+        </div>
+      </div>
+
+      <div class="results-actions">
+        <button class="btn btn-success btn-full" id="results-rematch-btn">REMATCH & CHAT</button>
+        <button class="btn btn-ghost btn-full" id="results-home-btn">RETURN TO MENU</button>
+        <button class="btn btn-ghost btn-sm btn-full" style="color:var(--danger);opacity:0.6" id="results-report-btn">REPORT OPPONENT</button>
+      </div>
+    </div>`;
   tap(document.getElementById('cancel-search-btn'), () => { socket?.emit('cancel-search'); resetPeer(); stopLocalStream(); renderDashboard(); showPage('page-dashboard'); });
   tap(document.getElementById('arena-back-btn'), leaveArena);
   tap(document.getElementById('end-btn'), leaveArena);
