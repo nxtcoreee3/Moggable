@@ -722,6 +722,42 @@ function renderTutorial() {
   tap(document.getElementById('start-playing-btn'), () => pg.remove());
 }
 
+function renderLivenessCheck(onComplete) {
+  showPage('page-arena'); 
+  const pg = document.getElementById('page-arena');
+  pg.innerHTML = `
+    <div class="liveness-wrap">
+      <div class="liveness-header">
+        <div class="arena-title">Face Verification</div>
+        <p style="color:var(--muted);font-size:14px">Verify you're human before playing</p>
+      </div>
+      <div class="liveness-video-container">
+        <video id="liveness-video" autoplay muted playsinline></video>
+        <div class="liveness-overlay">
+          <div id="liveness-instruction">Initializing Camera...</div>
+          <div class="liveness-progress"><div id="liveness-progress-fill"></div></div>
+        </div>
+      </div>
+      <div style="margin-top:20px">
+        <button class="btn btn-ghost" id="liveness-cancel">Cancel</button>
+      </div>
+    </div>
+  `;
+
+  livenessState = 'center';
+
+  runFaceTracking(() => {
+    toast('Verification Success! 🛡️', 'success');
+    onComplete();
+  }).then(cam => {
+    tap(document.getElementById('liveness-cancel'), () => {
+      cam.stop();
+      renderDashboard();
+      showPage('page-dashboard');
+    });
+  });
+}
+
 function renderDashboard() {
   if (!userData) return;
   const initial = userData.username.charAt(0).toUpperCase();
