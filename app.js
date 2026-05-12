@@ -3,13 +3,15 @@ import {
   ensureUserDoc, getUserByFriendCode
 } from './firebase-config.js';
 
-const SERVER_URL = window.location.hostname === 'localhost'
+const SERVER_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
   ? 'http://localhost:8080'
-  : 'https://YOUR-RENDER-APP.onrender.com';
+  : (localStorage.getItem('MOGGABLE_SERVER_URL') || 'https://moggable.onrender.com');
 
 let socket = null;
 let currentUser = null;
 let userData = null;
+let isGuest = false;
+let isVerified = false;
 let localStream = null;
 let peerConnection = null;
 let currentRoomId = null;
@@ -100,10 +102,19 @@ function onFaceResults(results) {
   }
 }
 
-async function runFaceTracking() {
-  const video = document.getElementById('local-video');
+async function runFaceTracking(onVerified = null) {
+  const video = document.getElementById('local-video') || document.getElementById('liveness-video');
   if (!video) return;
   
+  if (!faceMesh) initFaceMesh();
+
+  // If we are doing liveness check, we need a different callback
+  if (onVerified) {
+    faceMesh.onResults((results) => onLivenessResults(results, onVerified));
+  } else {
+    faceMesh.onResults(onFaceResults);
+  }
+
   const camera = new Camera(video, {
     onFrame: async () => {
       await faceMesh.send({ image: video });
@@ -112,6 +123,58 @@ async function runFaceTracking() {
     height: 480
   });
   camera.start();
+  return camera;
+}
+
+let livenessState = 'center'; // center -> left -> right -> done
+
+function onLivenessResults(results, onVerified) {
+  const instructionEl = document.getElementById('liveness-instruction');
+  const progressEl = document.getElementById('liveness-progress-fill');
+
+  if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+    const landmarks = results.multiFaceLandmarks[0];
+    const nose = landmarks[1];
+    const leftEye = landmarks[33];
+    const rightEye = landmarks[263];
+    
+    // Calculate Yaw (approximate)
+    const midPoint = (leftEye.x + rightEye.x) / 2;
+    const yaw = (nose.x - midPoint) / (rightEye.x - leftEye.x);
+
+    if (livenessState === 'center') {
+      instructionEl.textContent = 'Look straight at the camera';
+      if (Math.abs(yaw) < 0.1) {
+        livenessState = 'left';
+        toast('Good! Now turn your head LEFT', 'info');
+      }
+    } else if (livenessState === 'left') {
+      instructionEl.textContent = 'Turn your head LEFT ←';
+      if (yaw < -0.4) {
+        livenessState = 'right';
+        toast('Perfect! Now turn your head RIGHT', 'info');
+      }
+    } else if (livenessState === 'right') {
+      instructionEl.textContent = 'Turn your head RIGHT →';
+      if (yaw > 0.4) {
+        livenessState = 'done';
+        isVerified = true;
+        instructionEl.textContent = 'Verification Complete! ✅';
+        instructionEl.style.color = 'var(--success)';
+        setTimeout(onVerified, 1000);
+      }
+    }
+    
+    // Update progress
+    let p = 0;
+    if (livenessState === 'left') p = 33;
+    if (livenessState === 'right') p = 66;
+    if (livenessState === 'done') p = 100;
+    if (progressEl) progressEl.style.width = p + '%';
+
+  } else {
+    if (instructionEl) instructionEl.textContent = 'Position your face in the frame';
+  }
 }
 
 function connectSocket() {
@@ -301,16 +364,21 @@ function showResults(myScore, partnerScore) {
 }
 
 async function updateElo(myScore, partnerScore) {
-  if (!userData) return;
-  
   const K = 32;
   const actualScore = myScore > partnerScore ? 1 : (myScore < partnerScore ? 0 : 0.5);
   
-  // Note: We don't know partner's Elo here easily without a fetch, 
-  // so we'll assume a fair match (partnerElo = 1000) or just use a fixed bump for now
-  // In a real app, we'd fetch the partner's Elo from Firestore.
-  const newElo = Math.round(userData.elo + K * (actualScore - 0.5));
+  if (isGuest) {
+    userData.elo = Math.round(userData.elo + K * (actualScore - 0.5));
+    if (actualScore === 1) userData.wins++;
+    if (actualScore === 0) userData.losses++;
+    localStorage.setItem('MOGGABLE_GUEST_DATA', JSON.stringify(userData));
+    toast(`Guest Elo Updated: ${userData.elo} ${actualScore === 1 ? '📈' : '📉'}`, 'info');
+    return;
+  }
+
+  if (!userData) return;
   
+  const newElo = Math.round(userData.elo + K * (actualScore - 0.5));
   userData.elo = newElo;
   if (actualScore === 1) userData.wins++;
   if (actualScore === 0) userData.losses++;
@@ -371,20 +439,99 @@ function renderAuth() {
         Continue with Google
       </button>
       <div class="divider">or</div>
-      <p style="color:var(--muted);font-size:13px;text-align:center">By signing in you agree to keep it respectful 🤝</p>
+      <button class="btn btn-ghost btn-full" id="guest-login-btn">⚡ Play as Guest</button>
+      <p style="color:var(--muted);font-size:13px;text-align:center;margin-top:20px">By signing in you agree to keep it respectful 🤝</p>
       <div style="margin-top:20px;text-align:center"><button class="btn btn-ghost btn-sm" id="back-to-landing">← Back</button></div>
     </div>`;
   tap(document.getElementById('google-signin-btn'), async () => {
     try {
       const result = await signInWithPopup(auth, provider);
       const ud = await ensureUserDoc(result.user);
-      currentUser = result.user; userData = ud;
+      currentUser = result.user; userData = ud; isGuest = false;
       toast(`Welcome, ${ud.username}! 🔥`, 'success');
       connectSocket();
       renderDashboard(); showPage('page-dashboard');
     } catch (err) { toast('Sign-in failed: ' + err.message, 'error'); }
   });
+  tap(document.getElementById('guest-login-btn'), renderGuestSetup);
   tap(document.getElementById('back-to-landing'), () => showPage('page-landing'));
+}
+
+function renderGuestSetup() {
+  const pg = document.getElementById('page-auth');
+  pg.innerHTML = `
+    <div class="glass auth-card">
+      <div class="auth-logo">Guest Access</div>
+      <p class="auth-subtitle">Choose an alias to start playing</p>
+      <div style="margin-bottom:20px">
+        <label>Display Name</label>
+        <input type="text" id="guest-alias" placeholder="CoolMogger" maxlength="15" autocomplete="off" />
+      </div>
+      <button class="btn btn-primary btn-full" id="confirm-guest-btn">Enter Arena</button>
+      <div style="margin-top:20px;text-align:center"><button class="btn btn-ghost btn-sm" id="back-to-auth">← Back</button></div>
+    </div>`;
+  
+  const input = document.getElementById('guest-alias');
+  input.focus();
+
+  tap(document.getElementById('confirm-guest-btn'), () => {
+    const alias = input.value.trim();
+    if (!alias) { toast('Please enter an alias', 'error'); return; }
+    
+    const saved = localStorage.getItem('MOGGABLE_GUEST_DATA');
+    let baseData = saved ? JSON.parse(saved) : { elo: 1000, wins: 0, losses: 0 };
+    
+    isGuest = true;
+    currentUser = { uid: 'guest_' + Math.random().toString(36).substr(2, 9) };
+    userData = {
+      ...baseData,
+      uid: currentUser.uid,
+      username: alias + ' (Guest)',
+      friendCode: 'GUEST'
+    };
+    
+    toast(`Welcome, ${alias}! Playing as Guest.`, 'success');
+    connectSocket();
+    renderDashboard(); showPage('page-dashboard');
+  });
+
+  tap(document.getElementById('back-to-auth'), renderAuth);
+}
+
+function renderLivenessCheck(onComplete) {
+  showPage('page-arena'); 
+  const pg = document.getElementById('page-arena');
+  pg.innerHTML = `
+    <div class="liveness-wrap">
+      <div class="liveness-header">
+        <div class="arena-title">Face Verification</div>
+        <p style="color:var(--muted);font-size:14px">Verify you're human before playing</p>
+      </div>
+      <div class="liveness-video-container">
+        <video id="liveness-video" autoplay muted playsinline></video>
+        <div class="liveness-overlay">
+          <div id="liveness-instruction">Initializing Camera...</div>
+          <div class="liveness-progress"><div id="liveness-progress-fill"></div></div>
+        </div>
+      </div>
+      <div style="margin-top:20px">
+        <button class="btn btn-ghost" id="liveness-cancel">Cancel</button>
+      </div>
+    </div>
+  `;
+
+  livenessState = 'center';
+
+  runFaceTracking(() => {
+    toast('Verification Success! 🛡️', 'success');
+    onComplete();
+  }).then(cam => {
+    tap(document.getElementById('liveness-cancel'), () => {
+      cam.stop();
+      renderDashboard();
+      showPage('page-dashboard');
+    });
+  });
 }
 
 function renderDashboard() {
@@ -425,11 +572,49 @@ function renderDashboard() {
     if (confirm('Sign out?')) { await signOut(auth); currentUser = null; userData = null; showPage('page-landing'); }
   });
   tap(document.getElementById('copy-code-btn'), () => { navigator.clipboard.writeText(userData.friendCode).then(() => toast('Friend code copied!', 'success')); });
-  tap(document.getElementById('random-match-btn'), () => { openArena(); initFaceMesh(); socket.emit('find-match'); showWaiting('Finding an opponent…'); });
-  tap(document.getElementById('host-code-btn'), () => { openArena(); initFaceMesh(); socket.emit('host-friend-code', { code: userData.friendCode }); showWaiting(`Waiting for someone to enter your code: ${userData.friendCode}`); });
+  tap(document.getElementById('random-match-btn'), () => {
+    if (!isVerified) {
+      renderLivenessCheck(() => {
+        isVerified = true;
+        openArena();
+        socket.emit('find-match');
+        showWaiting('Finding an opponent…');
+      });
+    } else {
+      openArena();
+      socket.emit('find-match');
+      showWaiting('Finding an opponent…');
+    }
+  });
+  tap(document.getElementById('host-code-btn'), () => {
+    if (!isVerified) {
+      renderLivenessCheck(() => {
+        isVerified = true;
+        openArena();
+        socket.emit('host-friend-code', { code: userData.friendCode });
+        showWaiting(`Waiting for someone to enter your code: ${userData.friendCode}`);
+      });
+    } else {
+      openArena();
+      socket.emit('host-friend-code', { code: userData.friendCode });
+      showWaiting(`Waiting for someone to enter your code: ${userData.friendCode}`);
+    }
+  });
   tap(document.getElementById('join-code-btn'), () => { document.getElementById('fc-input').focus(); toast('Enter a friend code below ↓', 'info'); });
-  tap(document.getElementById('fc-join-btn'), joinByCode);
-  document.getElementById('fc-input')?.addEventListener('keydown', e => { if (e.key === 'Enter') joinByCode(); });
+  tap(document.getElementById('fc-join-btn'), () => {
+    if (!isVerified) {
+      renderLivenessCheck(() => {
+        isVerified = true;
+        joinByCode();
+      });
+    } else {
+      joinByCode();
+    }
+  });
+  document.getElementById('fc-input')?.addEventListener('keydown', e => { if (e.key === 'Enter') {
+     if (!isVerified) renderLivenessCheck(() => { isVerified = true; joinByCode(); });
+     else joinByCode();
+  } });
   document.getElementById('fc-input')?.addEventListener('input', e => { e.target.value = e.target.value.toUpperCase(); });
 }
 
@@ -484,12 +669,6 @@ function renderArena() {
       <div class="chat-panel" id="chat-panel"><div class="chat-header">💬 Chat<button class="btn btn-ghost btn-sm btn-icon" id="chat-close-btn">✕</button></div><div class="chat-messages" id="chat-messages"></div><div class="chat-input-row"><input id="chat-input" type="text" placeholder="Type a message…" maxlength="200" /><button class="btn btn-primary btn-sm btn-icon" id="chat-send-btn">➤</button></div></div>
     </div>
     <div id="results-overlay"><div style="font-size:48px">🏆</div><div style="font-size:26px;font-weight:900" id="result-verdict">Mogoff Results</div><div class="glass" style="padding:24px 40px;display:flex;gap:40px;border-radius:16px;text-align:center"><div><div style="color:var(--muted);font-size:13px;margin-bottom:4px">Your Score</div><div style="font-size:48px;font-weight:900;color:var(--accent)" id="result-my-score">—</div></div><div style="display:flex;align-items:center;color:var(--muted)">vs</div><div><div style="color:var(--muted);font-size:13px;margin-bottom:4px">Their Score</div><div style="font-size:48px;font-weight:900;color:var(--danger)" id="result-their-score">—</div></div></div><button class="btn btn-primary" id="results-rematch-btn">⚡ Find New Match</button><button class="btn btn-ghost" id="results-home-btn">🏠 Dashboard</button></div>`;
-  const stars = document.getElementById('rating-stars');
-  for (let i = 1; i <= 10; i++) {
-    const btn = document.createElement('button'); btn.className = 'star-btn'; btn.textContent = i <= 5 ? '⭐' : '💜'; btn.dataset.val = i;
-    tap(btn, () => { selectedRating = i; document.querySelectorAll('.star-btn').forEach((b, idx) => { b.classList.toggle('active', idx < i); }); });
-    stars.appendChild(btn);
-  }
   tap(document.getElementById('cancel-search-btn'), () => { socket?.emit('cancel-search'); resetPeer(); stopLocalStream(); renderDashboard(); showPage('page-dashboard'); });
   tap(document.getElementById('arena-back-btn'), leaveArena);
   tap(document.getElementById('end-btn'), leaveArena);

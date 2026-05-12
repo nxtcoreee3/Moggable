@@ -474,3 +474,40 @@ label {
   .arena-controls .btn { padding: 12px 14px; font-size: 14px; }
   .profile-card { flex-direction: column; text-align: center; }
 }
+
+/* Liveness Check */
+.liveness-wrap {
+  width: 100%; max-width: 500px;
+  display: flex; flex-direction: column; align-items: center;
+  gap: 24px;
+}
+.liveness-header { text-align: center; }
+.liveness-video-container {
+  position: relative;
+  width: 100%; aspect-ratio: 4/3;
+  border-radius: 20px; overflow: hidden;
+  border: 2px solid var(--border);
+  background: #000;
+}
+#liveness-video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+.liveness-overlay {
+  position: absolute; inset: 0;
+  background: linear-gradient(to top, rgba(0,0,0,0.8), transparent 40%);
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+  padding: 32px; gap: 16px;
+}
+#liveness-instruction {
+  font-size: 20px; font-weight: 800; text-align: center;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+}
+.liveness-progress {
+  width: 100%; height: 6px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 3px; overflow: hidden;
+}
+#liveness-progress-fill {
+  width: 0%; height: 100%;
+  background: linear-gradient(90deg, var(--glow), var(--glow2));
+  transition: width 0.3s ease;
+}
+
