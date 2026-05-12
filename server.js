@@ -48,11 +48,14 @@ function createRoom(socket1, socket2) {
   socket1.join(roomId);
   socket2.join(roomId);
 
-  // Notify both peers
-  socket1.emit('matched', { roomId, role: 'initiator' });
-  socket2.emit('matched', { roomId, role: 'receiver' });
+  const u1 = onlineUsers.get(socket1.id);
+  const u2 = onlineUsers.get(socket2.id);
 
-  console.log(`[Room] Created ${roomId} → ${socket1.id} ↔ ${socket2.id}`);
+  // Notify both peers with partner data
+  socket1.emit('match-found', { roomId, role: 'initiator', partner: u2 });
+  socket2.emit('match-found', { roomId, role: 'receiver', partner: u1 });
+
+  console.log(`[Room] Created ${roomId} → ${u1?.username} ↔ ${u2?.username}`);
 }
 
 function leaveRoom(socket) {
@@ -147,15 +150,22 @@ io.on('connection', (socket) => {
     socket.to(roomId).emit('mogoff-started');
   });
 
+  socket.on('status-update', ({ roomId, status }) => {
+    socket.to(roomId).emit('status-update', { status });
+  });
+
   socket.on('submit-rating', ({ roomId, rating }) => {
     const room = rooms.get(roomId);
     if (!room) return;
     room.ratings[socket.id] = rating;
 
+    // Notify partner of the rating for live scoring/overtime check
+    socket.to(roomId).emit('opponent-rating', { rating });
+
     // If both rated, reveal results
     if (Object.keys(room.ratings).length === 2) {
       const results = {};
-      const uids = {}; // socketId -> uid
+      const uids = {}; 
       
       room.users.forEach(sid => {
         const user = onlineUsers.get(sid);
