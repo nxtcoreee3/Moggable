@@ -29,7 +29,10 @@ let faceMesh = null;
 const ICE_SERVERS = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' }
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun3.l.google.com:19302' },
+    { urls: 'stun:stun4.l.google.com:19302' }
   ]
 };
 
@@ -267,14 +270,32 @@ function connectSocket() {
     const answer = await peerConnection.createAnswer();
     await peerConnection.setLocalDescription(answer);
     socket.emit('answer', { roomId: currentRoomId, answer });
+    
+    if (window.iceBuffer) {
+      for (const cand of window.iceBuffer) {
+        try { await peerConnection.addIceCandidate(new RTCIceCandidate(cand)); } catch {}
+      }
+      window.iceBuffer = [];
+    }
   });
 
   socket.on('answer', async ({ answer }) => {
     await peerConnection?.setRemoteDescription(new RTCSessionDescription(answer));
+    if (window.iceBuffer) {
+      for (const cand of window.iceBuffer) {
+        try { await peerConnection.addIceCandidate(new RTCIceCandidate(cand)); } catch {}
+      }
+      window.iceBuffer = [];
+    }
   });
 
   socket.on('ice-candidate', async ({ candidate }) => {
-    try { await peerConnection?.addIceCandidate(new RTCIceCandidate(candidate)); } catch {}
+    if (!peerConnection || !peerConnection.remoteDescription) {
+      if (!window.iceBuffer) window.iceBuffer = [];
+      window.iceBuffer.push(candidate);
+      return;
+    }
+    try { await peerConnection.addIceCandidate(new RTCIceCandidate(candidate)); } catch {}
   });
 
   socket.on('peer-disconnected', () => {
@@ -301,7 +322,8 @@ function connectSocket() {
     const partnerScore = results[partnerSid];
     
     showResults(myScore, partnerScore);
-    if (userData && partnerUid) {
+    const pUid = uids[partnerSid];
+    if (userData && pUid) {
       await updateElo(myScore, partnerScore);
     }
   });
@@ -403,7 +425,6 @@ function resetPeer() {
   }
   currentRoomId = null;
   myRole = null;
-  selectedRating = 0;
   hideMogoffOverlay();
 }
 
@@ -1036,8 +1057,8 @@ function renderArena() {
       </div>
     </div>`;
   tap(document.getElementById('cancel-search-btn'), () => { socket?.emit('cancel-search'); resetPeer(); stopLocalStream(); renderDashboard(); showPage('page-dashboard'); });
-  tap(document.getElementById('arena-back-btn'), leaveArena);
-  tap(document.getElementById('end-btn'), leaveArena);
+  tap(document.getElementById('arena-back-btn'), () => leaveArena(false));
+  tap(document.getElementById('end-btn'), () => leaveArena(false));
   tap(document.getElementById('mogoff-btn'), () => {
     if (!currentRoomId) { toast('Not connected yet!', 'error'); return; }
     if (currentMogScore === 0) { toast('Face not detected!', 'error'); return; }
