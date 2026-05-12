@@ -41,7 +41,7 @@ async function ensureUserDoc(firebaseUser) {
     username,
     friendCode,
     photoURL: firebaseUser.photoURL || '',
-    elo: 1000,
+    elo: 100,
     wins: 0,
     losses: 0,
     createdAt: serverTimestamp()
@@ -57,4 +57,4 @@ async function getUserByFriendCode(code) {
   return snap.docs[0].data();
 }
 
-export { auth, db, provider, signInWithPopup, signOut, onAuthStateChanged, ensureUserDoc, getUserByFriendCode };
+export { auth, db, doc, setDoc, provider, signInWithPopup, signOut, onAuthStateChanged, ensureUserDoc, getUserByFriendCode };

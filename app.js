@@ -1,5 +1,5 @@
 import {
-  auth, provider, signInWithPopup, signOut, onAuthStateChanged,
+  auth, db, doc, setDoc, provider, signInWithPopup, signOut, onAuthStateChanged,
   ensureUserDoc, getUserByFriendCode
 } from './firebase-config.js';
 
@@ -581,7 +581,6 @@ async function updateElo(myScore, partnerScore, forfeit = false) {
   if (actualScore === 1) userData.wins++;
   if (actualScore === 0) userData.losses++;
 
-  const { db, doc, setDoc } = await import('./firebase-config.js');
   const userRef = doc(db, 'users', currentUser.uid);
   await setDoc(userRef, { 
     elo: userData.elo,
@@ -871,8 +870,7 @@ function openArena() {
   renderArena();
   showPage('page-arena');
   startLocalStream().then(() => {
-    // Only run face tracking if not already running (MediaPipe handles this internally usually)
-    // but we can trigger it here for the arena view
+    runFaceTracking();
   }).catch(() => toast('Camera access denied', 'error'));
 }
 
