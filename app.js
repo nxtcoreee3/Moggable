@@ -229,7 +229,9 @@ function connectSocket() {
   });
   socket.on('online-count', count => {
     const el = document.getElementById('online-count');
+    const wel = document.getElementById('waiting-online-count');
     if (el) el.textContent = count;
+    if (wel) wel.textContent = count;
   });
   socket.on('waiting', () => showWaiting('Finding your opponent…'));
   socket.on('match-found', async ({ roomId, partner, role }) => {
@@ -830,19 +832,17 @@ function renderDashboard() {
   tap(document.getElementById('join-code-btn'), () => { 
     const code = prompt('Enter Friend Code:');
     if (code) {
-       document.getElementById('fc-input').value = code;
-       if (!isVerified) renderLivenessCheck(() => { isVerified = true; joinByCode(); });
-       else joinByCode();
+       if (!isVerified) renderLivenessCheck(() => { isVerified = true; joinByCode(code); });
+       else joinByCode(code);
     }
   });
 }
 
-async function joinByCode() {
-  const code = document.getElementById('fc-input')?.value.trim().toUpperCase();
+async function joinByCode(code) {
   if (!code || code.length !== 5) { toast('Enter a valid 5-character code', 'error'); return; }
   openArena();
   initFaceMesh();
-  socket.emit('join-friend-code', { code });
+  socket.emit('join-friend-code', { code: code.toUpperCase() });
   showWaiting('Connecting to friend…');
 }
 
@@ -932,7 +932,13 @@ setInterval(checkCameraHealth, 1000);
 function renderArena() {
   const pg = document.getElementById('page-arena');
   pg.innerHTML = `
-    <div id="waiting-screen"><div class="spinner"></div><div style="font-size:22px;font-weight:800">Finding Match…</div><div id="waiting-msg" style="color:var(--muted);font-size:15px"></div><button class="btn btn-ghost" id="cancel-search-btn">Cancel</button></div>
+    <div id="waiting-screen">
+      <div class="spinner"></div>
+      <div style="font-size:22px;font-weight:800">Finding Match…</div>
+      <div id="waiting-msg" style="color:var(--muted);font-size:15px;margin-bottom:10px"></div>
+      <div style="font-size:12px;color:var(--accent);margin-bottom:20px"><span id="waiting-online-count">...</span> players online</div>
+      <button class="btn btn-ghost" id="cancel-search-btn">Cancel</button>
+    </div>
     <div class="arena-wrap">
       <div class="arena-topbar">
         <div class="arena-title">⚔️ Moggable</div>
@@ -967,8 +973,8 @@ function renderArena() {
 
           <div class="slot-overlay bottom-right">
             <div class="player-info-card">
-              <div class="player-name">${userData.username}</div>
-              <div class="player-meta"><span class="badge badge-purple">${userData.elo} ELO</span></div>
+              <div class="player-name">${userData?.username || 'Guest'}</div>
+              <div class="player-meta"><span class="badge badge-purple">${userData?.elo || 100} ELO</span></div>
             </div>
           </div>
           
