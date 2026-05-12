@@ -952,6 +952,21 @@ setInterval(checkCameraHealth, 1000);
 
 function renderArena() {
   const pg = document.getElementById('page-arena');
+  const style = document.createElement('style');
+  style.textContent = `
+    .status-pill {
+      position: absolute; bottom: 12px; left: 12px;
+      background: rgba(0,0,0,0.6); backdrop-filter: blur(10px);
+      padding: 6px 12px; border-radius: 99px;
+      font-size: 10px; font-weight: 900; letter-spacing: 0.1em;
+      color: var(--muted); border: 1px solid var(--border);
+      z-index: 10;
+    }
+    .status-pill.active { color: var(--success); border-color: rgba(34, 197, 94, 0.3); background: rgba(34, 197, 94, 0.1); }
+    .status-pill.inactive { color: var(--danger); border-color: rgba(239, 68, 68, 0.3); background: rgba(239, 68, 68, 0.1); }
+  `;
+  document.head.appendChild(style);
+  
   pg.innerHTML = `
     <div id="waiting-screen">
       <div class="spinner"></div>
