@@ -111,13 +111,21 @@ function onFaceResults(results) {
       canvasCtx.fill();
     }
     
-    // 🧠 MOG SCORE CALCULATION (More Dynamic & Sensitive)
+    // 🧠 MOG SCORE CALCULATION
+    const leftEye = landmarks[33];
+    const rightEye = landmarks[263];
+    const eyeDist = Math.sqrt(Math.pow(rightEye.x - leftEye.x, 2) + Math.pow(rightEye.y - leftEye.y, 2));
+    
+    const jawLeft = landmarks[234];
+    const jawRight = landmarks[454];
+    const jawWidth = Math.sqrt(Math.pow(jawRight.x - jawLeft.x, 2) + Math.pow(jawRight.y - jawLeft.y, 2));
+
     const forehead = landmarks[10];
     const chin = landmarks[152];
     const faceHeight = Math.sqrt(Math.pow(chin.x - forehead.x, 2) + Math.pow(chin.y - forehead.y, 2));
     
     // Use eyeDist as a base for scale
-    if (eyeDist === 0) return;
+    if (!eyeDist || eyeDist === 0) return;
     const jawRel = jawWidth / eyeDist;
     const heightRel = faceHeight / eyeDist;
     
@@ -185,6 +193,13 @@ async function runFaceTracking(onVerified = null) {
     const camera = new Camera(video, {
       onFrame: async () => {
         if (video.readyState < 2) return;
+        
+        // Sync internal dimensions to match video resolution for perfect alignment
+        if (video.videoWidth && canvasElement.width !== video.videoWidth) {
+          canvasElement.width = video.videoWidth;
+          canvasElement.height = video.videoHeight;
+        }
+
         try {
           await faceMesh.send({ image: video });
         } catch (e) {
