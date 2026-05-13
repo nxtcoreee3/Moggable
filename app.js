@@ -26,6 +26,7 @@ let hasOvertime = false;
 let cameraOffStart = null;
 let remoteScore = "0.0";
 let faceMesh = null;
+let lastRatingEmit = 0;
 const ICE_SERVERS = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
@@ -109,16 +110,19 @@ function onFaceResults(results) {
     const faceHeight = Math.sqrt(Math.pow(chin.x - forehead.x, 2) + Math.pow(chin.y - forehead.y, 2));
     
     // Use eyeDist as a base for scale
+    if (eyeDist === 0) return;
     const jawRel = jawWidth / eyeDist;
     const heightRel = faceHeight / eyeDist;
     
     // Combine factors for ultra high volatility (Omoggle Style)
     const base = (jawRel - 1.1) * 20 + (heightRel - 1.8) * 15 + 2.0; 
-    currentMogScore = Math.min(Math.max((base + (Math.random() * 0.6 - 0.3)).toFixed(1), 1.0), 10.0);
+    currentMogScore = Math.min(Math.max(parseFloat(base.toFixed(1)) + (Math.random() * 0.6 - 0.3), 1.0), 10.0).toFixed(1);
     
-    // Emit real-time score to opponent
-    if (currentRoomId) {
+    // Emit real-time score to opponent (THROTTLED to 5 FPS to prevent lag)
+    const now = Date.now();
+    if (currentRoomId && now - lastRatingEmit > 200) {
       socket.emit('live-rating', { roomId: currentRoomId, rating: currentMogScore });
+      lastRatingEmit = now;
     }
     
     // 🔍 FACE ANALYSIS (DOM & FLAW)
@@ -137,6 +141,9 @@ function onFaceResults(results) {
 
     if (statusEl) { statusEl.textContent = 'SCANNING...'; statusEl.className = 'status-pill active'; }
     if (scoreEl) scoreEl.textContent = currentMogScore;
+    
+    // DEBUG: Mesh working
+    if (Math.random() > 0.99) console.log("Mesh active, score:", currentMogScore);
     
     const domEl = document.getElementById('live-dom');
     const flawEl = document.getElementById('live-flaw');
@@ -162,15 +169,32 @@ async function runFaceTracking(onVerified = null) {
     faceMesh.onResults(onFaceResults);
   }
 
-  const camera = new Camera(video, {
-    onFrame: async () => {
+  try {
+    const camera = new Camera(video, {
+      onFrame: async () => {
+        if (video.readyState < 2) return;
+        try {
+          await faceMesh.send({ image: video });
+        } catch (e) {
+          console.error("FaceMesh send error:", e);
+        }
+      },
+      width: 640,
+      height: 480
+    });
+    await camera.start();
+    return camera;
+  } catch (err) {
+    console.error("Camera start failed:", err);
+    // Fallback: manual loop if Camera class fails
+    const processFrame = async () => {
+      if (video.paused || video.ended) return;
       await faceMesh.send({ image: video });
-    },
-    width: 640,
-    height: 480
-  });
-  camera.start();
-  return camera;
+      requestAnimationFrame(processFrame);
+    };
+    video.onplay = () => processFrame();
+    return { stop: () => { video.onplay = null; } };
+  }
 }
 
 let livenessState = 'center'; // center -> left -> right -> done
@@ -810,10 +834,12 @@ function renderDashboard() {
         <div class="profile-avatar-lg">${initial}</div>
         <div class="profile-info">
           <div class="profile-name">${userData.username}</div>
+          ${userData.friendCode ? `
           <div class="friend-code-row">
             <span class="friend-code" id="my-code">${userData.friendCode}</span>
             <button class="copy-btn" id="copy-code-btn" title="Copy code">📋</button>
           </div>
+          ` : ''}
           <div style="display:flex;gap:12px;margin-top:12px">
             <div class="badge badge-purple">ELO: ${userData.elo}</div>
             <div class="badge badge-green">W: ${userData.wins}</div>
@@ -825,8 +851,8 @@ function renderDashboard() {
       <div class="section-title">Jump In</div>
       <div class="action-grid">
         <div class="action-card featured" id="random-match-btn"><div class="action-icon">⚡</div><div class="action-title">Random Mogoff</div><div class="action-desc">Match with a random stranger instantly</div></div>
-        <div class="action-card" id="host-code-btn"><div class="action-icon">🔗</div><div class="action-title">Host with Code</div><div class="action-desc">Wait for a friend to join you</div></div>
-        <div class="action-card" id="join-code-btn"><div class="action-icon">🎯</div><div class="action-title">Join by Code</div><div class="action-desc">Enter a friend's code</div></div>
+        <div class="action-card ${currentUser && currentUser.isAnonymous ? 'disabled' : ''}" id="host-code-btn" style="${currentUser && currentUser.isAnonymous ? 'opacity:0.5;pointer-events:none' : ''}"><div class="action-icon">🔗</div><div class="action-title">Host with Code</div><div class="action-desc">${currentUser && currentUser.isAnonymous ? 'Sign in to use' : 'Wait for a friend to join you'}</div></div>
+        <div class="action-card ${currentUser && currentUser.isAnonymous ? 'disabled' : ''}" id="join-code-btn" style="${currentUser && currentUser.isAnonymous ? 'opacity:0.5;pointer-events:none' : ''}"><div class="action-icon">🎯</div><div class="action-title">Join by Code</div><div class="action-desc">${currentUser && currentUser.isAnonymous ? 'Sign in to use' : 'Enter a friend\'s code'}</div></div>
       </div>
     </div>`;
   tap(document.getElementById('dash-avatar'), async () => {

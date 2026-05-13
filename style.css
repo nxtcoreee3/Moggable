@@ -505,8 +505,8 @@ label {
 .bottom-right { bottom: 0; right: 0; }
 
 .mog-score-card {
-  background: rgba(10, 10, 15, 0.85);
-  backdrop-filter: blur(12px);
+  background: rgba(10, 10, 15, 0.92);
+  backdrop-filter: blur(4px);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
   padding: 12px 16px;
@@ -526,8 +526,8 @@ label {
 }
 
 .player-info-card {
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(8px);
+  background: rgba(0, 0, 0, 0.9);
+  backdrop-filter: blur(4px);
   padding: 8px 14px;
   border-radius: 8px;
   text-align: right;
