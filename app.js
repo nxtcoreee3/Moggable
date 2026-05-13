@@ -79,8 +79,15 @@ function onFaceResults(results) {
   const statusEl = document.getElementById('face-status-badge');
   const scoreEl = document.getElementById('live-mog-score');
   const canvasElement = document.getElementById('local-canvas');
-  if (!canvasElement) return;
+  const videoElement = document.getElementById('local-video') || document.getElementById('liveness-video');
+  if (!canvasElement || !videoElement) return;
   const canvasCtx = canvasElement.getContext('2d');
+  
+  // Sync internal dimensions and update display size to prevent scaling drift
+  if (videoElement.videoWidth && canvasElement.width !== videoElement.videoWidth) {
+    canvasElement.width = videoElement.videoWidth;
+    canvasElement.height = videoElement.videoHeight;
+  }
   
   canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
 
@@ -115,7 +122,8 @@ function onFaceResults(results) {
     const heightRel = faceHeight / eyeDist;
     
     // Combine factors for ultra high volatility (Omoggle Style)
-    const base = (jawRel - 1.1) * 20 + (heightRel - 1.8) * 15 + 2.0; 
+    let base = (jawRel - 1.1) * 20 + (heightRel - 1.8) * 15 + 2.0; 
+    if (isNaN(base)) base = 0;
     currentMogScore = Math.min(Math.max(parseFloat(base.toFixed(1)) + (Math.random() * 0.6 - 0.3), 1.0), 10.0).toFixed(1);
     
     // Emit real-time score to opponent (THROTTLED to 5 FPS to prevent lag)
@@ -164,9 +172,13 @@ async function runFaceTracking(onVerified = null) {
 
   // If we are doing liveness check, we need a different callback
   if (onVerified) {
-    faceMesh.onResults((results) => onLivenessResults(results, onVerified));
+    faceMesh.onResults((results) => {
+      onLivenessResults(results, onVerified);
+    });
   } else {
-    faceMesh.onResults(onFaceResults);
+    faceMesh.onResults((results) => {
+      onFaceResults(results);
+    });
   }
 
   try {
@@ -712,15 +724,24 @@ function renderGuestSetup() {
     if (!alias) { toast('Please enter an alias', 'error'); return; }
     
     const saved = localStorage.getItem('MOGGABLE_GUEST_DATA');
-    let baseData = saved ? JSON.parse(saved) : { elo: 100, wins: 0, losses: 0 };
+    let baseData = { elo: 100, wins: 0, losses: 0 };
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        baseData.elo = (parsed.elo && !isNaN(parsed.elo)) ? parsed.elo : 100;
+        baseData.wins = parsed.wins || 0;
+        baseData.losses = parsed.losses || 0;
+      } catch(e) {}
+    }
     
     isGuest = true;
-    currentUser = { uid: 'guest_' + Math.random().toString(36).substr(2, 9) };
+    currentUser = { uid: 'guest_' + Math.random().toString(36).substr(2, 9), isAnonymous: true };
     userData = {
       ...baseData,
       uid: currentUser.uid,
       username: alias + ' (Guest)',
-      friendCode: 'GUEST'
+      friendCode: null,
+      isGuest: true
     };
     
     toast(`Welcome, ${alias}! Playing as Guest.`, 'success');
@@ -841,9 +862,9 @@ function renderDashboard() {
           </div>
           ` : ''}
           <div style="display:flex;gap:12px;margin-top:12px">
-            <div class="badge badge-purple">ELO: ${userData.elo}</div>
-            <div class="badge badge-green">W: ${userData.wins}</div>
-            <div class="badge badge-red">L: ${userData.losses}</div>
+            <div class="badge badge-purple">ELO: ${Math.round(userData.elo || 100)}</div>
+            <div class="badge badge-green">W: ${userData.wins || 0}</div>
+            <div class="badge badge-red">L: ${userData.losses || 0}</div>
           </div>
         </div>
       </div>
@@ -1135,6 +1156,41 @@ function leaveArena(isForfeit = false) {
 }
 
 onAuthStateChanged(auth, async (user) => {
-  if (user) { try { currentUser = user; userData = await ensureUserDoc(user); connectSocket(); renderDashboard(); showPage('page-dashboard'); } catch { renderLanding(); renderAuth(); showPage('page-landing'); } }
-  else { renderLanding(); renderAuth(); showPage('page-landing'); }
+  if (user) { 
+    try { 
+      currentUser = user; 
+      userData = await ensureUserDoc(user); 
+      connectSocket(); 
+      renderDashboard(); 
+      showPage('page-dashboard'); 
+    } catch { 
+      checkGuestSession();
+    } 
+  } else { 
+    checkGuestSession();
+  }
 });
+
+function checkGuestSession() {
+  const saved = localStorage.getItem('MOGGABLE_GUEST_DATA');
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved);
+      isGuest = true;
+      userData = {
+        ...parsed,
+        elo: (parsed.elo && !isNaN(parsed.elo)) ? parsed.elo : 100,
+        wins: parsed.wins || 0,
+        losses: parsed.losses || 0
+      };
+      currentUser = { uid: userData.uid, isAnonymous: true };
+      connectSocket();
+      renderDashboard();
+      showPage('page-dashboard');
+      return;
+    } catch(e) {}
+  }
+  renderLanding(); 
+  renderAuth(); 
+  showPage('page-landing');
+}
