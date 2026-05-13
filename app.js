@@ -103,17 +103,18 @@ function onFaceResults(results) {
       canvasCtx.fill();
     }
     
-    // 🧠 MOG SCORE CALCULATION (Scaled 1.0 - 10.0 - Improved Range)
-    const leftEye = landmarks[33];
-    const rightEye = landmarks[263];
-    const eyeDist = Math.sqrt(Math.pow(rightEye.x - leftEye.x, 2) + Math.pow(rightEye.y - leftEye.y, 2));
-    const jawLeft = landmarks[234];
-    const jawRight = landmarks[454];
-    const jawWidth = Math.sqrt(Math.pow(jawRight.x - jawLeft.x, 2) + Math.pow(jawRight.y - jawLeft.y, 2));
-
-    const ratio = jawWidth / eyeDist;
-    const base = (ratio - 1.15) * 12 + 2.5; 
-    currentMogScore = Math.min(Math.max((base + (Math.random() * 0.2)).toFixed(1), 1.0), 10.0);
+    // 🧠 MOG SCORE CALCULATION (More Dynamic & Sensitive)
+    const forehead = landmarks[10];
+    const chin = landmarks[152];
+    const faceHeight = Math.sqrt(Math.pow(chin.x - forehead.x, 2) + Math.pow(chin.y - forehead.y, 2));
+    
+    // Use eyeDist as a base for scale
+    const jawRel = jawWidth / eyeDist;
+    const heightRel = faceHeight / eyeDist;
+    
+    // Combine factors for ultra high volatility (Omoggle Style)
+    const base = (jawRel - 1.1) * 20 + (heightRel - 1.8) * 15 + 2.0; 
+    currentMogScore = Math.min(Math.max((base + (Math.random() * 0.6 - 0.3)).toFixed(1), 1.0), 10.0);
     
     // Emit real-time score to opponent
     if (currentRoomId) {
@@ -962,21 +963,6 @@ setInterval(checkCameraHealth, 1000);
 
 function renderArena() {
   const pg = document.getElementById('page-arena');
-  const style = document.createElement('style');
-  style.textContent = `
-    .status-pill {
-      position: absolute; bottom: 12px; left: 12px;
-      background: rgba(0,0,0,0.6); backdrop-filter: blur(10px);
-      padding: 6px 12px; border-radius: 99px;
-      font-size: 10px; font-weight: 900; letter-spacing: 0.1em;
-      color: var(--muted); border: 1px solid var(--border);
-      z-index: 10;
-    }
-    .status-pill.active { color: var(--success); border-color: rgba(34, 197, 94, 0.3); background: rgba(34, 197, 94, 0.1); }
-    .status-pill.inactive { color: var(--danger); border-color: rgba(239, 68, 68, 0.3); background: rgba(239, 68, 68, 0.1); }
-  `;
-  document.head.appendChild(style);
-  
   pg.innerHTML = `
     <div id="waiting-screen">
       <div class="spinner"></div>
@@ -998,7 +984,7 @@ function renderArena() {
         </div>
       </div>
       <div class="video-grid">
-        <div class="video-slot player-slot">
+        <div class="video-slot player-slot" style="overflow:hidden">
           <video id="local-video" autoplay muted playsinline></video>
           <canvas id="local-canvas" width="640" height="480"></canvas>
           <div class="scanline"></div>
@@ -1027,7 +1013,7 @@ function renderArena() {
           <div id="face-status-badge" class="status-pill">INITIALIZING...</div>
         </div>
 
-        <div class="video-slot opponent-slot">
+        <div class="video-slot opponent-slot" style="overflow:hidden">
           <video id="remote-video" autoplay playsinline></video>
           <div class="scanline"></div>
           <div class="video-overlay" id="remote-overlay"><div class="big-emoji">👤</div><p>Searching for opponent…</p></div>
